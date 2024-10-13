@@ -1,5 +1,3 @@
-use std::io::stdout;
-
 use crossterm::{
     cursor,
     event::{self, Event, KeyCode},
@@ -7,27 +5,19 @@ use crossterm::{
     terminal::{self, disable_raw_mode, enable_raw_mode, size},
     ExecutableCommand, QueueableCommand,
 };
+use rand::Rng;
+use std::io::{stdout, Write};
+
+#[derive(Clone)]
 enum Direction {
     UP,
     DOWN,
     LEFT,
     RIGHT,
-    NOWHERE,
 }
-impl Clone for Direction {
-    fn clone(&self) -> Self {
-        match self {
-            Direction::UP => Direction::UP,
-            Direction::DOWN => Direction::DOWN,
-            Direction::LEFT => Direction::LEFT,
-            Direction::RIGHT => Direction::RIGHT,
-            Direction::NOWHERE => Direction::NOWHERE,
-        }
-    }
-}
+
 struct Snake {
-    body: Vec<(u16, u16, Direction)>,
-    is_alive: bool,
+    body: Vec<(u16, u16)>,
     direction: Direction,
 }
 
@@ -43,36 +33,26 @@ impl Snake {
         };
 
         // Calculate the new head position
-        let (head_x, head_y) = (self.body[0].0, self.body[0].1);
+        let (head_x, head_y) = self.body[0];
         let new_head = match self.direction {
             Direction::UP => (head_x, head_y.saturating_sub(1)),
             Direction::DOWN => (head_x, head_y.saturating_add(1)),
             Direction::LEFT => (head_x.saturating_sub(1), head_y),
             Direction::RIGHT => (head_x.saturating_add(1), head_y),
-            Direction::NOWHERE => (head_x, head_y),
         };
 
         // Move the body
         for i in (1..self.body.len()).rev() {
-            self.body[i] = (
-                self.body[i - 1].0,
-                self.body[i - 1].1,
-                self.body[i - 1].2.clone(),
-            );
+            self.body[i] = self.body[i - 1];
         }
 
         // Update the head
-        self.body[0] = (new_head.0, new_head.1, self.direction.clone());
+        self.body[0] = new_head;
+    }
 
-        // Check for self-collision
-        if self
-            .body
-            .iter()
-            .skip(1)
-            .any(|segment| segment.0 == new_head.0 && segment.1 == new_head.1)
-        {
-            self.is_alive = false;
-        }
+    fn is_self_collision(&self) -> bool {
+        let head = self.body[0];
+        self.body.iter().skip(1).any(|&segment| segment == head)
     }
 }
 
@@ -83,33 +63,40 @@ fn main() -> std::io::Result<()> {
 
     let mut snake = Snake {
         body: vec![
-            (x / 2, y / 2, Direction::UP),
-            (x / 2, (y / 2) + 1, Direction::NOWHERE),
-            (x / 2, (y / 2) + 2, Direction::NOWHERE),
-            (x / 2, (y / 2) + 3, Direction::NOWHERE),
-            (x / 2, (y / 2) + 4, Direction::NOWHERE),
+            (x / 2, y / 2),
+            (x / 2, (y / 2) + 1),
+            (x / 2, (y / 2) + 2),
+            (x / 2, (y / 2) + 3),
+            (x / 2, (y / 2) + 4),
         ],
-        is_alive: true,
         direction: Direction::UP,
     };
 
+    let mut rng = rand::thread_rng();
+    let mut food = (rng.gen_range(0..x), rng.gen_range(0..y));
+
     loop {
         stdout.execute(terminal::Clear(terminal::ClearType::All))?;
-        stdout
-            .queue(cursor::Hide)?
-            .execute(cursor::MoveTo(snake.body[0].0, snake.body[0].1))?
-            .execute(Print("A"))?;
+        stdout.queue(cursor::Hide)?;
 
-        for i in snake.body.iter_mut().skip(1) {
+        // Draw the snake
+        for (i, &(x, y)) in snake.body.iter().enumerate() {
             stdout
-                .execute(cursor::MoveTo(i.0, i.1))?
-                .execute(Print("S"))?;
+                .queue(cursor::MoveTo(x, y))?
+                .queue(Print(if i == 0 { "O" } else { "o" }))?;
         }
+
+        // Draw the food
+        stdout
+            .queue(cursor::MoveTo(food.0, food.1))?
+            .queue(Print("F"))?
+            .flush()?;
+
         if event::poll(std::time::Duration::from_millis(100))? {
             if let Event::Key(key_event) = event::read()? {
                 match key_event.code {
                     KeyCode::Char('q') => {
-                        terminal::Clear(terminal::ClearType::All);
+                        stdout.execute(terminal::Clear(terminal::ClearType::All))?;
                         stdout.queue(Print("Quitting..."))?;
                         break;
                     }
@@ -120,9 +107,33 @@ fn main() -> std::io::Result<()> {
                     _ => continue,
                 }
             }
+        } else {
+            snake.move_snake(snake.direction.clone());
         }
-        if !snake.is_alive {
-            stdout.queue(Print("You lost!"))?;
+
+        // Check if snake ate the food
+        if snake.body[0] == food {
+            // Generate new food
+            food = (rng.gen_range(0..x), rng.gen_range(0..y));
+            while snake.body.contains(&food) {
+                food = (rng.gen_range(0..x), rng.gen_range(0..y));
+            }
+
+            // Grow the snake
+            let last = *snake.body.last().unwrap();
+            snake.body.push(last);
+        }
+
+        if snake.is_self_collision() {
+            stdout
+                .execute(cursor::MoveTo(x / 2 - 5, y / 2))?
+                .execute(Print("Game Over!"))?;
+            break;
+        }
+        if snake.body[0].0 > x || snake.body[0].1 > y {
+            stdout
+                .execute(cursor::MoveTo(x / 2 - 5, y / 2))?
+                .execute(Print("Game Over!"))?;
             break;
         }
     }
