@@ -1,7 +1,8 @@
 use crossterm::{
     cursor,
     event::{self, Event, KeyCode},
-    style::Print,
+    queue,
+    style::{Color, Colors, Print, ResetColor, SetColors},
     terminal::{self, disable_raw_mode, enable_raw_mode, size},
     ExecutableCommand, QueueableCommand,
 };
@@ -59,7 +60,9 @@ impl Snake {
 fn main() -> std::io::Result<()> {
     enable_raw_mode()?;
     let mut stdout = stdout();
-    let (width, height) = size().unwrap();
+    let (mut width, mut height) = size().unwrap();
+    width /= 2;
+    height /= 2;
 
     let mut snake = Snake {
         body: vec![
@@ -83,7 +86,11 @@ fn main() -> std::io::Result<()> {
         for y in 0..height {
             for x in 0..width {
                 if x == 0 || x == width - 1 || y == 0 || y == height - 1 {
-                    stdout.queue(cursor::MoveTo(x, y))?.queue(Print("#"))?;
+                    stdout
+                        .queue(cursor::MoveTo(x, y))?
+                        .queue(SetColors(Colors::new(Color::Green, Color::Green)))?
+                        .queue(Print("#"))?
+                        .queue(ResetColor)?;
                 }
             }
         }
@@ -92,7 +99,9 @@ fn main() -> std::io::Result<()> {
         for (i, &(x, y)) in snake.body.iter().enumerate() {
             stdout
                 .queue(cursor::MoveTo(x, y))?
-                .queue(Print(if i == 0 { "O" } else { "o" }))?;
+                .queue(SetColors(Colors::new(Color::Red, Color::Red)))?
+                .queue(Print(if i == 0 { "O" } else { "o" }))?
+                .queue(ResetColor)?;
         }
 
         // Draw the food
