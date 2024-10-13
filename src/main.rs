@@ -59,25 +59,34 @@ impl Snake {
 fn main() -> std::io::Result<()> {
     enable_raw_mode()?;
     let mut stdout = stdout();
-    let (x, y) = size().unwrap();
+    let (width, height) = size().unwrap();
 
     let mut snake = Snake {
         body: vec![
-            (x / 2, y / 2),
-            (x / 2, (y / 2) + 1),
-            (x / 2, (y / 2) + 2),
-            (x / 2, (y / 2) + 3),
-            (x / 2, (y / 2) + 4),
+            (width / 2, height / 2),
+            (width / 2, (height / 2) + 1),
+            (width / 2, (height / 2) + 2),
+            (width / 2, (height / 2) + 3),
+            (width / 2, (height / 2) + 4),
         ],
         direction: Direction::UP,
     };
 
     let mut rng = rand::thread_rng();
-    let mut food = (rng.gen_range(0..x), rng.gen_range(0..y));
+    let mut food = (rng.gen_range(1..width - 1), rng.gen_range(1..height - 1));
 
     loop {
         stdout.execute(terminal::Clear(terminal::ClearType::All))?;
         stdout.queue(cursor::Hide)?;
+
+        // Draw the border
+        for y in 0..height {
+            for x in 0..width {
+                if x == 0 || x == width - 1 || y == 0 || y == height - 1 {
+                    stdout.queue(cursor::MoveTo(x, y))?.queue(Print("#"))?;
+                }
+            }
+        }
 
         // Draw the snake
         for (i, &(x, y)) in snake.body.iter().enumerate() {
@@ -114,9 +123,9 @@ fn main() -> std::io::Result<()> {
         // Check if snake ate the food
         if snake.body[0] == food {
             // Generate new food
-            food = (rng.gen_range(0..x), rng.gen_range(0..y));
+            food = (rng.gen_range(1..width - 1), rng.gen_range(1..height - 1));
             while snake.body.contains(&food) {
-                food = (rng.gen_range(0..x), rng.gen_range(0..y));
+                food = (rng.gen_range(1..width - 1), rng.gen_range(1..height - 1));
             }
 
             // Grow the snake
@@ -124,15 +133,14 @@ fn main() -> std::io::Result<()> {
             snake.body.push(last);
         }
 
-        if snake.is_self_collision() {
+        if snake.is_self_collision()
+            || snake.body[0].0 == 0
+            || snake.body[0].0 == width - 1
+            || snake.body[0].1 == 0
+            || snake.body[0].1 == height - 1
+        {
             stdout
-                .execute(cursor::MoveTo(x / 2 - 5, y / 2))?
-                .execute(Print("Game Over!"))?;
-            break;
-        }
-        if snake.body[0].0 > x || snake.body[0].1 > y {
-            stdout
-                .execute(cursor::MoveTo(x / 2 - 5, y / 2))?
+                .execute(cursor::MoveTo(width / 2 - 5, height / 2))?
                 .execute(Print("Game Over!"))?;
             break;
         }
