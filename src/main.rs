@@ -1,7 +1,6 @@
 use crossterm::{
     cursor,
     event::{self, Event, KeyCode},
-    queue,
     style::{Color, Colors, Print, ResetColor, SetColors},
     terminal::{self, disable_raw_mode, enable_raw_mode, size},
     ExecutableCommand, QueueableCommand,
@@ -61,7 +60,7 @@ fn main() -> std::io::Result<()> {
     enable_raw_mode()?;
     let mut stdout = stdout();
     let (mut width, mut height) = size().unwrap();
-    width /= 2;
+    width /= 4; // Divide by 4 instead of 2 because we're using double-width characters
     height /= 2;
 
     let mut snake = Snake {
@@ -87,9 +86,9 @@ fn main() -> std::io::Result<()> {
             for x in 0..width {
                 if x == 0 || x == width - 1 || y == 0 || y == height - 1 {
                     stdout
-                        .queue(cursor::MoveTo(x, y))?
+                        .queue(cursor::MoveTo(x * 2, y))?
                         .queue(SetColors(Colors::new(Color::Green, Color::Green)))?
-                        .queue(Print("#"))?
+                        .queue(Print("██"))?
                         .queue(ResetColor)?;
                 }
             }
@@ -98,19 +97,21 @@ fn main() -> std::io::Result<()> {
         // Draw the snake
         for (i, &(x, y)) in snake.body.iter().enumerate() {
             stdout
-                .queue(cursor::MoveTo(x, y))?
+                .queue(cursor::MoveTo(x * 2, y))?
                 .queue(SetColors(Colors::new(Color::Red, Color::Red)))?
-                .queue(Print(if i == 0 { "O" } else { "o" }))?
+                .queue(Print(if i == 0 { "██" } else { "██" }))?
                 .queue(ResetColor)?;
         }
 
         // Draw the food
         stdout
-            .queue(cursor::MoveTo(food.0, food.1))?
-            .queue(Print("F"))?
+            .queue(cursor::MoveTo(food.0 * 2, food.1))?
+            .queue(SetColors(Colors::new(Color::Yellow, Color::Yellow)))?
+            .queue(Print("██"))?
+            .queue(ResetColor)?
             .flush()?;
 
-        if event::poll(std::time::Duration::from_millis(100))? {
+        if event::poll(std::time::Duration::from_millis(150))? {
             if let Event::Key(key_event) = event::read()? {
                 match key_event.code {
                     KeyCode::Char('q') => {
