@@ -1,7 +1,7 @@
 use crossterm::{
     cursor,
     event::{self, Event, KeyCode},
-    style::{Color, Colors, Print, ResetColor, SetColors},
+    style::{Color, Colors, Print, ResetColor, SetColors, SetForegroundColor},
     terminal::{self, disable_raw_mode, enable_raw_mode, size},
     ExecutableCommand, QueueableCommand,
 };
@@ -94,6 +94,13 @@ fn main() -> std::io::Result<()> {
             }
         }
 
+        // Show statistics
+        stdout
+            .queue(cursor::MoveTo(0, 0))?
+            .queue(SetForegroundColor(Color::Red))?
+            .queue(Print(format!("Score: {}", snake.body.iter().count() - 5)))?
+            .queue(ResetColor)?;
+
         // Draw the snake
         for (i, &(x, y)) in snake.body.iter().enumerate() {
             stdout
@@ -150,6 +157,7 @@ fn main() -> std::io::Result<()> {
             || snake.body[0].1 == height - 1
         {
             stdout
+                .execute(terminal::Clear(terminal::ClearType::All))?
                 .execute(cursor::MoveTo(width / 2 - 5, height / 2))?
                 .execute(Print("Game Over!"))?;
             break;
